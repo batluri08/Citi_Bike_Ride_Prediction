@@ -72,4 +72,4 @@ inference_df["predicted_rides"] = preds.astype(int)
 
 # --- Output ---
 print("\n📈 Inference Results:")
-print(inference_df[["pickup_location_id", "predicted_rides"]])
+print(inference_df[["location_id", "predicted_rides"]])
