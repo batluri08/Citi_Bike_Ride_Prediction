@@ -54,17 +54,21 @@ inference_df[[c for c in inference_df.columns if c.startswith("feature_")]] = in
     [c for c in inference_df.columns if c.startswith("feature_")]
 ].astype(np.int32)
 
+# ✅ Rename to match training feature name
+inference_df = inference_df.rename(columns={"pickup_location_id": "location_id"})
+
 # --- Load model and predict ---
 mr = project.get_model_registry()
-model = mr.get_model("citibike_lightgbm_full", version=1)  # Adjust name/version if needed
+model = mr.get_model("citibike_lightgbm_full", version=1)
 model_dir = model.download()
-model_path = os.path.join(model_dir, "lightgbm_full_model.pkl")  # ✅ This matches what you saved earlier
-
+model_path = os.path.join(model_dir, "lightgbm_full_model.pkl")
 model = joblib.load(model_path)
-# Make predictions
-X_pred = inference_df.drop(columns=["pickup_location_id"])
+
+# ✅ Predict using all 31 features
+X_pred = inference_df
 preds = model.predict(X_pred)
 inference_df["predicted_rides"] = preds.astype(int)
+
 
 # --- Output ---
 print("\n📈 Inference Results:")
