@@ -4,6 +4,7 @@ import numpy as np
 import requests
 import hopsworks
 import os
+import joblib
 
 # --- Config ---
 HOPSWORKS_API_KEY = "hcd5CJN4URxAz0LC.CXXUwj6ljLaUBxrXZC500JG5azgUPdrJmSkljCG2JSE0DoRqK0Sc9nEliTPs5m82"
@@ -55,12 +56,11 @@ inference_df[[c for c in inference_df.columns if c.startswith("feature_")]] = in
 
 # --- Load model and predict ---
 mr = project.get_model_registry()
-model = mr.get_model(MODEL_NAME, version=MODEL_VERSION)
+model = mr.get_model("citibike_lightgbm_full", version=1)  # Adjust name/version if needed
 model_dir = model.download()
-model = model.load()
+model_path = os.path.join(model_dir, "lightgbm_full_model.pkl")  # ✅ This matches what you saved earlier
 
-preds = model.predict(inference_df.drop(columns=["pickup_location_id"]))
-inference_df["predicted_rides"] = preds.astype(int)
+model = joblib.load(model_path)
 
 # --- Output ---
 print("\n📈 Inference Results:")
