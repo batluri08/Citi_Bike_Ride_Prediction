@@ -53,7 +53,6 @@ schema = Schema(X_train)
 
 model_obj = mr.python.create_model(
     name="citibike_lightgbm_full",
-    version=1,
     description="LightGBM model trained on hourly lag features",
     metrics={"mae": mae},
     input_example=X_train.iloc[:5],
