@@ -7,6 +7,8 @@ from zipfile import ZipFile
 from io import BytesIO
 import hopsworks
 from hsml.schema import Schema
+import os
+
 
 # --- Step 1: Get previous full month's info ---
 today = datetime.today()
@@ -91,7 +93,10 @@ start_time = ts_df["pickup_hour"].min() + pd.Timedelta(hours=28)
 final_features["pickup_hour"] = pd.date_range(start=start_time, periods=len(final_features), freq="H")
 
 # --- Step 9: Upload to Hopsworks Feature Store ---
-project = hopsworks.login()
+project = hopsworks.login(
+    api_key_value=os.environ["HOPSWORKS_API_KEY"],
+    project=os.environ["HOPSWORKS_PROJECT_NAME"]
+)
 fs = project.get_feature_store()
 schema = Schema(final_features)
 
