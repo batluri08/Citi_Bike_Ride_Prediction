@@ -31,19 +31,14 @@ top_locations = features_df.groupby("pickup_location_id")["target"].sum().sort_v
 
 inference_rows = []
 
-for loc in top_locations:
-    df_loc = features_df[features_df["pickup_location_id"] == loc].sort_values("pickup_hour")
-    if df_loc.empty:
-        print(f"⚠️ No data for location {loc}")
-        continue
+latest_row = df_loc.iloc[-1]
+row = [latest_row[f"feature_{i+1}"] for i in range(WINDOW_SIZE)]
+row += [
+    latest_row["hour_of_day"],
+    latest_row["day_of_week"],
+    loc
+]
 
-    latest_row = df_loc.iloc[-1]
-    row = [latest_row[f"feature_{i+1}"] for i in range(WINDOW_SIZE)]
-    row += [
-        latest_row["hour_of_day"],
-        latest_row["day_of_week"],
-        loc
-    ]
     inference_rows.append(row)
 
 # --- Build inference dataframe ---
