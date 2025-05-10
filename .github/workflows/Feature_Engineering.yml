@@ -1,4 +1,4 @@
-name: inference_pipeline
+name: Feature_engineering_pipeline
 
 on:
   workflow_run:
