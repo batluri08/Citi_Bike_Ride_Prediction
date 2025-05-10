@@ -75,24 +75,25 @@ inference_df["predicted_rides"] = preds.astype(int)
 print("\n📈 Inference Results:")
 print(inference_df[["location_id", "predicted_rides"]])
 
-# Add timestamp to predictions
+# Add timestamp column
 inference_df["prediction_time"] = pd.Timestamp.utcnow()
 
-# Get or create prediction Feature Group
+# Get or create prediction feature group
 try:
     pred_fg = fs.get_feature_group("citibike_hourly_predictions", version=1)
     print("📦 Using existing prediction feature group")
 except:
+    print("🆕 Creating new prediction feature group")
     pred_fg = fs.create_feature_group(
         name="citibike_hourly_predictions",
         version=1,
         description="Hourly predicted rides for top 3 locations",
         primary_key=["location_id", "prediction_time"],
-        event_time="prediction_time"
+        event_time="prediction_time",
+        schema=inference_df[["location_id", "predicted_rides", "prediction_time"]]
     )
-    print("🆕 Created new prediction feature group")
 
-# Insert prediction data
+# ✅ Insert into prediction FG
 pred_fg.insert(inference_df[["location_id", "predicted_rides", "prediction_time"]],
                write_options={"wait_for_job": True})
 print("✅ Predictions saved to Hopsworks Feature Store")
