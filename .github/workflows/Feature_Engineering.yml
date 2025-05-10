@@ -31,4 +31,4 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run Inference Pipeline
-        run: python pipelines/feature_engineering.py
+        run: python scripts/feature_engineering.py
