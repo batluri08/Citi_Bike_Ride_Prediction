@@ -8,6 +8,7 @@ from io import BytesIO
 import hopsworks
 from hsml.schema import Schema
 import os
+import src.config as config
 
 
 # --- Step 1: Get previous full month's info ---
