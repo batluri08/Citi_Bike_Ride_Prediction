@@ -4,3 +4,4 @@ requests
 pyarrow
 hopsworks
 python-dotenv
+os
