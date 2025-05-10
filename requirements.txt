@@ -6,3 +6,5 @@ hopsworks
 python-dotenv
 hopsworks[python]
 joblib
+lightgbm
+scikit-learn
