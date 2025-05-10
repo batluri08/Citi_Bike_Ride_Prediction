@@ -94,9 +94,11 @@ start_time = ts_df["pickup_hour"].min() + pd.Timedelta(hours=28)
 final_features["pickup_hour"] = pd.date_range(start=start_time, periods=len(final_features), freq="H")
 
 # --- Step 9: Upload to Hopsworks Feature Store ---
-hopsworks.login(
-        project=config.HOPSWORKS_PROJECT_NAME, api_key_value=config.HOPSWORKS_API_KEY
-    )
+HOPSWORKS_API_KEY = "hcd5CJN4URxAz0LC.CXXUwj6ljLaUBxrXZC500JG5azgUPdrJmSkljCG2JSE0DoRqK0Sc9nEliTPs5m82"
+HOPSWORKS_PROJECT = "BhumikaTaxiFareMLProject"
+
+project = hopsworks.login(api_key_value=HOPSWORKS_API_KEY, project=HOPSWORKS_PROJECT)
+
 fs = project.get_feature_store()
 schema = Schema(final_features)
 
