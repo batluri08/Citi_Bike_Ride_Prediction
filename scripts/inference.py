@@ -30,17 +30,20 @@ inference_rows = []
 
 for loc in top_locations:
     df_loc = features_df[features_df["pickup_location_id"] == loc].sort_values("pickup_hour")
-    if len(df_loc) < WINDOW_SIZE:
-        print(f"❌ Not enough data for location {loc}")
+    if df_loc.empty:
+        print(f"⚠️ No data for location {loc}")
         continue
 
-    latest = df_loc.iloc[-WINDOW_SIZE:]
-    row = latest[[f"feature_{i+1}" for i in range(WINDOW_SIZE)]].values.flatten().tolist()
+    # Just take the latest row (already has all 28 lag features + hour/day)
+    latest_row = df_loc.iloc[-1]
+
+    row = [latest_row[f"feature_{i+1}"] for i in range(WINDOW_SIZE)]
     row += [
-        latest.iloc[-1]["hour_of_day"],
-        latest.iloc[-1]["day_of_week"],
-        loc
+        latest_row["hour_of_day"],
+        latest_row["day_of_week"],
+        loc  # keep pickup_location_id for mapping
     ]
+
     inference_rows.append(row)
 
 # --- Build inference dataframe ---
