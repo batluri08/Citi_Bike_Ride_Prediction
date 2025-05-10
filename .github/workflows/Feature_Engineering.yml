@@ -1,12 +1,15 @@
-name: Feature Engineering Pipeline
+name: inference_pipeline
 
 on:
-  schedule:
-    - cron: "0 * * * *"  # runs hourly at minute 0
-  workflow_dispatch:      # allow manual runs
+  workflow_run:
+    workflows: ["Feature Engineering Pipeline"]  # 👈 match exactly with your feature_engineering.yml
+    types:
+      - completed
+
+  workflow_dispatch:  # 👈 allow manual runs from GitHub UI
 
 jobs:
-  run-feature-pipeline:
+  run-inference:
     runs-on: ubuntu-latest
 
     env:
@@ -14,11 +17,11 @@ jobs:
       HOPSWORKS_PROJECT_NAME: ${{ secrets.HOPSWORKS_PROJECT_NAME }}
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - name: ⬇Checkout repository
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
@@ -27,5 +30,5 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run Feature Engineering Pipeline
-        run: python scripts/feature_engineering.py
+      - name: Run Inference Pipeline
+        run: python pipelines/feature_engineering.py
