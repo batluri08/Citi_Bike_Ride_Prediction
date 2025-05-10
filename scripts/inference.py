@@ -61,6 +61,10 @@ model_dir = model.download()
 model_path = os.path.join(model_dir, "lightgbm_full_model.pkl")  # ✅ This matches what you saved earlier
 
 model = joblib.load(model_path)
+# Make predictions
+X_pred = inference_df.drop(columns=["pickup_location_id"])
+preds = model.predict(X_pred)
+inference_df["predicted_rides"] = preds.astype(int)
 
 # --- Output ---
 print("\n📈 Inference Results:")
