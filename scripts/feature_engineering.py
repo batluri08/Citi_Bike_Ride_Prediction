@@ -86,7 +86,8 @@ for loc in top_locations:
         features_df["pickup_location_id"] = loc
         combined_features.append(features_df)
 
-final_features = pd.concat(combined_features, ignore_index=True)
+latest_rows = [df.iloc[-1:] for df in combined_features if not df.empty]
+final_features = pd.concat(latest_rows, ignore_index=True)
 
 # --- Step 8: Add hourly timestamps for Hopsworks ---
 start_time = ts_df["pickup_hour"].min() + pd.Timedelta(hours=28)
