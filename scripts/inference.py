@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 from hsfs.feature_group import FeatureGroup
+from hsml.schema import Schema
 import pandas as pd
 import numpy as np
 import requests
@@ -75,25 +76,24 @@ inference_df["predicted_rides"] = preds.astype(int)
 print("\n📈 Inference Results:")
 print(inference_df[["location_id", "predicted_rides"]])
 
-# Add timestamp column
 inference_df["prediction_time"] = pd.Timestamp.utcnow()
 
-# Get or create prediction feature group
-try:
-    pred_fg = fs.get_feature_group("citibike_hourly_predictions", version=1)
-    print("📦 Using existing prediction feature group")
-except:
-    print("🆕 Creating new prediction feature group")
-    pred_fg = fs.create_feature_group(
-        name="citibike_hourly_predictions",
-        version=1,
-        description="Hourly predicted rides for top 3 locations",
-        primary_key=["location_id", "prediction_time"],
-        event_time="prediction_time",
-        schema=inference_df[["location_id", "predicted_rides", "prediction_time"]]
-    )
+# Define schema explicitly for prediction FG
+pred_schema = Schema(inference_df[["location_id", "predicted_rides", "prediction_time"]])
 
-# ✅ Insert into prediction FG
-pred_fg.insert(inference_df[["location_id", "predicted_rides", "prediction_time"]],
-               write_options={"wait_for_job": True})
+# Always get or create safely
+pred_fg = fs.get_or_create_feature_group(
+    name="citibike_hourly_predictions",
+    version=1,
+    description="Hourly predicted rides for top 3 locations",
+    primary_key=["location_id", "prediction_time"],
+    event_time="prediction_time",
+    schema=pred_schema
+)
+
+# Insert prediction data
+pred_fg.insert(
+    inference_df[["location_id", "predicted_rides", "prediction_time"]],
+    write_options={"wait_for_job": True}
+)
 print("✅ Predictions saved to Hopsworks Feature Store")
