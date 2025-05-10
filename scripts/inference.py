@@ -77,20 +77,28 @@ print("\n📈 Inference Results:")
 print(inference_df[["location_id", "predicted_rides"]])
 
 # --- Step 9: Upload Predictions to Hopsworks Feature Store ---
-# --- Add prediction_time ---
+from hsml.schema import Schema
+
+# Add timestamp
 inference_df["prediction_time"] = pd.Timestamp.utcnow()
 
-# Cast types
+# Clean datatypes
 inference_df["location_id"] = inference_df["location_id"].astype(int)
 inference_df["predicted_rides"] = inference_df["predicted_rides"].astype(int)
+inference_df["prediction_time"] = pd.to_datetime(inference_df["prediction_time"])
 
-# Define schema
-schema = Schema(inference_df[["location_id", "predicted_rides", "prediction_time"]])
+# Define schema only if needed
+schema = Schema(
+    [
+        {"name": "location_id", "type": "int"},
+        {"name": "predicted_rides", "type": "int"},
+        {"name": "prediction_time", "type": "timestamp"}
+    ]
+)
 
-# Try to fetch FG
+# Get FG or create
 pred_fg = fs.get_feature_group("citibike_hourly_predictions", version=1)
 
-# ✅ Check if it came back as None (common in older SDKs)
 if pred_fg is None:
     print("🆕 Creating new prediction feature group")
     pred_fg = fs.create_feature_group(
@@ -104,9 +112,10 @@ if pred_fg is None:
 else:
     print("📦 Using existing prediction feature group")
 
-# Insert
+# Insert prediction data
 pred_fg.insert(
     inference_df[["location_id", "predicted_rides", "prediction_time"]],
     write_options={"wait_for_job": True}
 )
+
 print("✅ Predictions uploaded to Hopsworks successfully.")
