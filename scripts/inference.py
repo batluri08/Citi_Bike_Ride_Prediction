@@ -37,17 +37,13 @@ for loc in top_locations:
         print(f"⚠️ No data for location {loc}")
         continue
 
-    # Just take the latest row (already has all 28 lag features + hour/day)
-    # Take the last 28 rows (i.e., last 28 hours)
-    window_df = df_loc.tail(WINDOW_SIZE)
-    if len(window_df) < WINDOW_SIZE:
-        continue
-    
-    lags = window_df["rides"].values
-    hour = window_df.iloc[-1]["hour_of_day"]
-    day = window_df.iloc[-1]["day_of_week"]
-    
-    row = list(lags) + [hour, day, loc]
+    latest_row = df_loc.iloc[-1]
+    row = [latest_row[f"feature_{i+1}"] for i in range(WINDOW_SIZE)]
+    row += [
+        latest_row["hour_of_day"],
+        latest_row["day_of_week"],
+        loc
+    ]
     inference_rows.append(row)
 
 # --- Build inference dataframe ---
