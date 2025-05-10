@@ -6,11 +6,11 @@ import hopsworks
 import os
 
 # --- Config ---
-HOPSWORKS_API_KEY = "your-api-key"
+HOPSWORKS_API_KEY = "hcd5CJN4URxAz0LC.CXXUwj6ljLaUBxrXZC500JG5azgUPdrJmSkljCG2JSE0DoRqK0Sc9nEliTPs5m82"
 HOPSWORKS_PROJECT = "BhumikaTaxiFareMLProject"
 FG_NAME = "citibike_hourly_features"
 FG_VERSION = 1
-MODEL_NAME = "citibike_predictor"
+MODEL_NAME = "citibike_lightgbm_full"
 MODEL_VERSION = 1
 WINDOW_SIZE = 28
 
