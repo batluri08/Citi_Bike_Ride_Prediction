@@ -107,7 +107,6 @@ if pred_fg is None:
         description="Hourly predicted rides for top 3 locations",
         primary_key=["location_id", "prediction_time"],
         event_time="prediction_time",
-        schema=schema
     )
 else:
     print("📦 Using existing prediction feature group")
