@@ -117,5 +117,8 @@ except:
     )
     print("🆕 Created new feature group")
 
+int_columns = [col for col in final_features.columns if col.startswith("feature_") or col == "target"]
+final_features[int_columns] = final_features[int_columns].astype(np.int32)
+
 fg.insert(final_features, write_options={"wait_for_job": True})
 print("✅ Features uploaded to Hopsworks successfully.")
