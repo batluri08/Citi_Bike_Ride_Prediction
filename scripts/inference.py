@@ -31,13 +31,21 @@ top_locations = features_df.groupby("pickup_location_id")["target"].sum().sort_v
 
 inference_rows = []
 
-latest_row = df_loc.iloc[-1]
-row = [latest_row[f"feature_{i+1}"] for i in range(WINDOW_SIZE)]
-row += [
-    latest_row["hour_of_day"],
-    latest_row["day_of_week"],
-    loc
-]
+for loc in top_locations:
+    df_loc = features_df[features_df["pickup_location_id"] == loc].sort_values("pickup_hour")
+    if df_loc.empty:
+        print(f"⚠️ No data for location {loc}")
+        continue
+
+    # Just take the latest row (already has all 28 lag features + hour/day)
+    latest_row = df_loc.iloc[-1]
+
+    row = [latest_row[f"feature_{i+1}"] for i in range(WINDOW_SIZE)]
+    row += [
+        latest_row["hour_of_day"],
+        latest_row["day_of_week"],
+        loc  # keep pickup_location_id for mapping
+    ]
 
     inference_rows.append(row)
 
@@ -110,4 +118,3 @@ pred_fg.insert(
 )
 
 print("✅ Predictions uploaded to Hopsworks successfully.")
-
