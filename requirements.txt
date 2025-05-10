@@ -5,3 +5,4 @@ pyarrow
 hopsworks
 python-dotenv
 hopsworks[python]
+joblib
