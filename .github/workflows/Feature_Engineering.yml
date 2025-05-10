@@ -1,12 +1,9 @@
 name: Feature_engineering_pipeline
 
 on:
-  workflow_run:
-    workflows: ["Feature Engineering Pipeline"]  # 👈 match exactly with your feature_engineering.yml
-    types:
-      - completed
-
-  workflow_dispatch:  # 👈 allow manual runs from GitHub UI
+  schedule:
+    - cron: '0 * * * *'  # ⏰ runs at the top of every hour (UTC)
+  workflow_dispatch:      # 🟢 allows manual trigger
 
 jobs:
   run-inference:
