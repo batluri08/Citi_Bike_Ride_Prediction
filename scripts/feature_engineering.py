@@ -29,9 +29,16 @@ with ZipFile(BytesIO(response.content)) as zf:
     with zf.open(csv_filename) as file:
         df = pd.read_csv(file, low_memory=False)
 
+# Filter only last 48 hours
+
+
 # --- Step 3: Clean + Prepare ---
 df['started_at'] = pd.to_datetime(df['started_at'], errors='coerce')
 df['ended_at'] = pd.to_datetime(df['ended_at'], errors='coerce')
+
+latest_cutoff = datetime.utcnow() - pd.Timedelta(hours=48)
+df = df[df['started_at'] >= latest_cutoff]
+
 df = df[df['started_at'].notnull() & df['ended_at'].notnull()]
 df['duration'] = df['ended_at'] - df['started_at']
 df = df[(df['duration'] > pd.Timedelta(0)) & (df['duration'] <= pd.Timedelta(hours=5))]
