@@ -33,12 +33,6 @@ with ZipFile(BytesIO(response.content)) as zf:
 
 
 # --- Step 3: Clean + Prepare ---
-df['started_at'] = pd.to_datetime(df['started_at'], errors='coerce')
-df['ended_at'] = pd.to_datetime(df['ended_at'], errors='coerce')
-
-latest_cutoff = datetime.utcnow() - pd.Timedelta(hours=48)
-df = df[df['started_at'] >= latest_cutoff]
-
 df = df[df['started_at'].notnull() & df['ended_at'].notnull()]
 df['duration'] = df['ended_at'] - df['started_at']
 df = df[(df['duration'] > pd.Timedelta(0)) & (df['duration'] <= pd.Timedelta(hours=5))]
@@ -47,10 +41,15 @@ df = df[df['start_station_id'].notnull()]
 df['pickup_location_id'] = pd.to_numeric(df['start_station_id'], errors='coerce')
 df = df[df['pickup_location_id'].notnull()]
 df['pickup_location_id'] = df['pickup_location_id'].round().astype(int)
+df['pickup_hour'] = df['started_at'].dt.floor("H")
+
 
 # --- Step 4: Round to hourly and aggregate ---
-df['pickup_hour'] = df['started_at'].dt.floor("H")
+# Build full hourly grid
 hourly_counts = df.groupby(['pickup_hour', 'pickup_location_id']).size().reset_index(name="rides")
+full_hours = pd.date_range(start=hourly_counts['pickup_hour'].min(),
+                           end=hourly_counts['pickup_hour'].max(),
+                           freq='H')
 
 # --- Step 5: Build complete hourly grid for missing hours ---
 full_hours = pd.date_range(hourly_counts['pickup_hour'].min(), hourly_counts['pickup_hour'].max(), freq='H')
@@ -87,18 +86,16 @@ def make_lag_features(df, location_id, window_size=28, step_size=1):
 top_locations = ts_df.groupby("pickup_location_id")["rides"].sum().sort_values(ascending=False).head(3).index.tolist()
 combined_features = []
 
+latest_rows = []
 for loc in top_locations:
     features_df = make_lag_features(ts_df, loc)
     if not features_df.empty:
         features_df["pickup_location_id"] = loc
-        combined_features.append(features_df)
-
-latest_rows = [df.iloc[-1:] for df in combined_features if not df.empty]
+        latest_rows.append(features_df.iloc[-1:])  # <-- get the last row
 final_features = pd.concat(latest_rows, ignore_index=True)
 
 # --- Step 8: Add hourly timestamps for Hopsworks ---
-start_time = ts_df["pickup_hour"].min() + pd.Timedelta(hours=28)
-final_features["pickup_hour"] = pd.date_range(start=start_time, periods=len(final_features), freq="H")
+final_features["pickup_hour"] = pd.Timestamp.utcnow().floor("H")
 
 # --- Step 9: Upload to Hopsworks Feature Store ---
 HOPSWORKS_API_KEY = "hcd5CJN4URxAz0LC.CXXUwj6ljLaUBxrXZC500JG5azgUPdrJmSkljCG2JSE0DoRqK0Sc9nEliTPs5m82"
