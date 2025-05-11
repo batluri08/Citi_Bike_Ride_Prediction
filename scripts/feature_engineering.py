@@ -89,7 +89,7 @@ current_hour = pd.Timestamp.utcnow().floor("H")
 final_features["pickup_hour"] = [current_hour] * len(final_features)
 
 # --- Step 8: Upload to Hopsworks Feature Store ---
-HOPSWORKS_API_KEY = os.getenv("HOPSWORKS_API_KEY")  # make sure .env has this
+HOPSWORKS_API_KEY = "hcd5CJN4URxAz0LC.CXXUwj6ljLaUBxrXZC500JG5azgUPdrJmSkljCG2JSE0DoRqK0Sc9nEliTPs5m82" # make sure .env has this
 HOPSWORKS_PROJECT = "BhumikaTaxiFareMLProject"
 
 project = hopsworks.login(api_key_value=HOPSWORKS_API_KEY, project=HOPSWORKS_PROJECT)
