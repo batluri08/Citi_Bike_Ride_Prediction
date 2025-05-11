@@ -6,7 +6,7 @@ import os
 import joblib
 
 # --- Config ---
-HOPSWORKS_API_KEY = os.getenv("HOPSWORKS_API_KEY")  # better practice
+HOPSWORKS_API_KEY = os.getenv("HOPSWORKS_API_KEY")
 HOPSWORKS_PROJECT = "BhumikaTaxiFareMLProject"
 FG_NAME = "citibike_hourly_features"
 FG_VERSION = 1
@@ -14,7 +14,6 @@ MODEL_NAME = "citibike_lightgbm_full"
 MODEL_VERSION = 1
 WINDOW_SIZE = 28
 PRED_FG_NAME = "citibike_hourly_predictions"
-
 
 # --- Login to Hopsworks ---
 project = hopsworks.login(api_key_value=HOPSWORKS_API_KEY, project=HOPSWORKS_PROJECT)
@@ -25,7 +24,11 @@ fg = fs.get_feature_group(FG_NAME, version=FG_VERSION)
 query = fg.select_all()
 features_df = query.read()
 
-# --- Select latest 28-hour rows per top location ---
+# --- Drop target column (used for training only) ---
+if "target" in features_df.columns:
+    features_df = features_df.drop(columns=["target"])
+
+# --- Select latest row per top 3 locations ---
 latest_rows = features_df.sort_values("pickup_hour").drop_duplicates("pickup_location_id", keep="last")
 top_locations = latest_rows["pickup_location_id"].value_counts().head(3).index.tolist()
 
@@ -51,7 +54,10 @@ for loc in top_locations:
 # --- Prepare final inference DataFrame ---
 columns = [f"feature_{i+1}" for i in range(WINDOW_SIZE)] + ["hour_of_day", "day_of_week", "location_id"]
 inference_df = pd.DataFrame(inference_rows, columns=columns)
-inference_df[[col for col in columns if "feature_" in col]] = inference_df[[col for col in columns if "feature_" in col]].astype(np.int32)
+
+# Enforce integer types
+feature_cols = [col for col in columns if "feature_" in col]
+inference_df[feature_cols] = inference_df[feature_cols].astype(np.int32)
 
 # --- Load model ---
 mr = project.get_model_registry()
@@ -60,26 +66,22 @@ model_dir = model.download()
 model_path = os.path.join(model_dir, "lightgbm_full_model.pkl")
 model = joblib.load(model_path)
 
-# --- Predict with added noise ---
+# --- Predict with slight noise to make output dynamic ---
 preds = model.predict(inference_df)
-
-# 👇 Add small noise (±2) for dynamic-looking predictions
 noise = np.random.randint(-2, 3, size=preds.shape)
 preds_noisy = np.clip(preds + noise, a_min=0, a_max=None)
 
 inference_df["predicted_rides"] = preds_noisy.astype(int)
 
-# Add timestamp
+# Add prediction time
 inference_df["prediction_time"] = pd.Timestamp.utcnow()
 
-# Clean up datatypes
+# Cast datatypes
 inference_df["location_id"] = inference_df["location_id"].astype(np.int64)
-inference_df["prediction_time"] = pd.to_datetime(inference_df["prediction_time"])
 inference_df["predicted_rides"] = inference_df["predicted_rides"].astype(np.int64)
+inference_df["prediction_time"] = pd.to_datetime(inference_df["prediction_time"])
 
-print(inference_df[["location_id", "predicted_rides", "prediction_time"]])
-
-PRED_FG_NAME = "citibike_hourly_predictions"
+# --- Upload predictions to Hopsworks ---
 try:
     pred_fg = fs.get_feature_group(PRED_FG_NAME, version=1)
     print("📦 Using existing prediction feature group")
@@ -93,7 +95,6 @@ except:
     )
     print("🆕 Created prediction feature group")
 
-# Insert
 pred_fg.insert(
     inference_df[["location_id", "predicted_rides", "prediction_time"]],
     write_options={"wait_for_job": True}
