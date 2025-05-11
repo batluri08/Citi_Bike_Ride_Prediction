@@ -11,10 +11,8 @@ import os
 
 # --- Step 1: Get previous full month's info ---
 today = datetime.today()
-year = today.year
-month = today.month - 1 if today.month > 1 else 12
-if today.month == 1:
-    year -= 1
+year = 2024
+month = today
 
 # --- Step 2: Download monthly data ZIP ---
 url = f"https://s3.amazonaws.com/tripdata/{year}{month:02}-citibike-tripdata.zip"
