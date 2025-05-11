@@ -33,8 +33,13 @@ with ZipFile(BytesIO(response.content)) as zf:
 
 
 # --- Step 3: Clean + Prepare ---
+
+# --- Step 3: Clean + Prepare ---
 df = df[df['started_at'].notnull() & df['ended_at'].notnull()]
+df['started_at'] = pd.to_datetime(df['started_at'], errors='coerce')
+df['ended_at'] = pd.to_datetime(df['ended_at'], errors='coerce')
 df['duration'] = df['ended_at'] - df['started_at']
+
 df = df[(df['duration'] > pd.Timedelta(0)) & (df['duration'] <= pd.Timedelta(hours=5))]
 
 df = df[df['start_station_id'].notnull()]
