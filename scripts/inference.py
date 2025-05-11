@@ -13,6 +13,8 @@ FG_VERSION = 1
 MODEL_NAME = "citibike_lightgbm_full"
 MODEL_VERSION = 1
 WINDOW_SIZE = 28
+PRED_FG_NAME = "citibike_hourly_predictions"
+
 
 # --- Login to Hopsworks ---
 project = hopsworks.login(api_key_value=HOPSWORKS_API_KEY, project=HOPSWORKS_PROJECT)
@@ -75,25 +77,27 @@ inference_df["location_id"] = inference_df["location_id"].astype(np.int64)
 inference_df["prediction_time"] = pd.to_datetime(inference_df["prediction_time"])
 inference_df["predicted_rides"] = inference_df["predicted_rides"].astype(np.int64)
 
-print("\n✅ Predictions uploaded to Hopsworks:")
 print(inference_df[["location_id", "predicted_rides", "prediction_time"]])
 
+PRED_FG_NAME = "citibike_hourly_predictions"
 try:
     pred_fg = fs.get_feature_group(PRED_FG_NAME, version=1)
-    print("📦 Using existing prediction group")
+    print("📦 Using existing prediction feature group")
 except:
     pred_fg = fs.create_feature_group(
         name=PRED_FG_NAME,
         version=1,
-        description="Hourly predicted Citi Bike rides",
+        description="Hourly predicted rides with noise for demo",
         primary_key=["location_id", "prediction_time"],
         event_time="prediction_time"
     )
     print("🆕 Created prediction feature group")
 
-# --- Prepare for Hopsworks insert ---
-pred_df["location_id"] = pred_df["location_id"].astype("int64")
-pred_df["predicted_rides"] = pred_df["predicted_rides"].astype("int64")
+# Insert
+pred_fg.insert(
+    inference_df[["location_id", "predicted_rides", "prediction_time"]],
+    write_options={"wait_for_job": True}
+)
 
-pred_fg.insert(pred_df, write_options={"wait_for_job": True})
-print("✅ Predictions uploaded to Hopsworks.")
+print("\n✅ Predictions uploaded to Hopsworks:")
+print(inference_df[["location_id", "predicted_rides", "prediction_time"]])
