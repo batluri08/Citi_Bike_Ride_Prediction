@@ -8,8 +8,3 @@ hopsworks[python]
 joblib
 lightgbm
 scikit-learn
-streamlit
-pandas
-matplotlib
-folium
-hopsworks
