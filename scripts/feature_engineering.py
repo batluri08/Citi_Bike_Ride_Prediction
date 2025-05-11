@@ -10,7 +10,7 @@ from hsml.schema import Schema
 import os
 
 # --- Step 1: Get previous full month's info ---
-today = datetime.utcnow()
+today = datetime.today()
 year = today.year
 month = today.month - 1 if today.month > 1 else 12
 if today.month == 1:
@@ -19,6 +19,7 @@ if today.month == 1:
 # --- Step 2: Download monthly data ZIP ---
 url = f"https://s3.amazonaws.com/tripdata/{year}{month:02}-citibike-tripdata.zip"
 response = requests.get(url)
+
 if response.status_code != 200:
     raise Exception(f"❌ Failed to download {url}")
 
@@ -40,61 +41,63 @@ df = df[df['pickup_location_id'].notnull()]
 df['pickup_location_id'] = df['pickup_location_id'].round().astype(int)
 df['pickup_hour'] = df['started_at'].dt.floor("H")
 
-# --- Step 4: Aggregate hourly ride counts ---
+# --- Step 4: Round to hourly and aggregate ---
 hourly_counts = df.groupby(['pickup_hour', 'pickup_location_id']).size().reset_index(name="rides")
-full_hours = pd.date_range(hourly_counts['pickup_hour'].min(), hourly_counts['pickup_hour'].max(), freq='H')
+full_hours = pd.date_range(start=hourly_counts['pickup_hour'].min(),
+                           end=hourly_counts['pickup_hour'].max(), freq='H')
 all_locations = hourly_counts['pickup_location_id'].unique()
-
 grid = pd.MultiIndex.from_product([full_hours, all_locations], names=['pickup_hour', 'pickup_location_id'])
 grid_df = pd.DataFrame(index=grid).reset_index()
 ts_df = pd.merge(grid_df, hourly_counts, on=["pickup_hour", "pickup_location_id"], how="left")
 ts_df["rides"] = ts_df["rides"].fillna(0).astype(int)
 
-# --- Step 5: Define lag feature function ---
-def make_lag_features(df, location_id, window_size=28, step_size=1):
-    data = df[df["pickup_location_id"] == location_id].sort_values("pickup_hour")
+# --- Step 5: Function for dynamic lag feature generation ---
+def extract_latest_lag_features(df, location_id, window_size=28):
+    data = df[df["pickup_location_id"] == location_id].sort_values("pickup_hour").reset_index(drop=True)
+    current_hour = pd.Timestamp.utcnow().floor("H")
+    latest_available_hour = current_hour - pd.Timedelta(hours=1)
+
+    idx = data[data["pickup_hour"] == latest_available_hour].index
+    if len(idx) == 0:
+        return pd.DataFrame()
+    
+    idx = idx[0]
+    if idx < window_size:
+        return pd.DataFrame()
+    
     values = data["rides"].values
     hours = data["pickup_hour"].dt.hour.values
     days = data["pickup_hour"].dt.dayofweek.values
 
-    if len(values) <= window_size:
-        return pd.DataFrame()
+    lags = values[idx - window_size: idx]
+    hour = hours[idx]
+    day = days[idx]
+    target = values[idx]
 
-    rows = []
-    for i in range(0, len(values) - window_size, step_size):
-        lags = values[i:i + window_size]
-        target = values[i + window_size]
-        hour = hours[i + window_size]
-        day = days[i + window_size]
-        row = list(lags) + [hour, day, target]
-        rows.append(row)
-
+    row = list(lags) + [hour, day, target]
     columns = [f"feature_{i+1}" for i in range(window_size)] + ["hour_of_day", "day_of_week", "target"]
-    return pd.DataFrame(rows, columns=columns)
+    return pd.DataFrame([row], columns=columns)
 
-# --- Step 6: Select top 3 locations & generate lag features ---
+# --- Step 6: Identify top 3 locations dynamically ---
 top_locations = ts_df.groupby("pickup_location_id")["rides"].sum().sort_values(ascending=False).head(3).index.tolist()
-latest_rows = []
 
+# --- Step 7: Build latest features for top locations ---
+final_features = []
 for loc in top_locations:
-    features_df = make_lag_features(ts_df, loc)
+    features_df = extract_latest_lag_features(ts_df, loc)
     if not features_df.empty:
         features_df["pickup_location_id"] = loc
-        latest_rows.append(features_df.iloc[-1:])  # take the last window
+        final_features.append(features_df)
 
-final_features = pd.concat(latest_rows, ignore_index=True)
-
-# --- Step 7: Assign current hour to all rows ---
-current_hour = pd.Timestamp.utcnow().floor("H")
-final_features["pickup_hour"] = [current_hour] * len(final_features)
+final_features = pd.concat(final_features, ignore_index=True)
+final_features["pickup_hour"] = pd.Timestamp.utcnow().floor("H")
 
 # --- Step 8: Upload to Hopsworks Feature Store ---
-HOPSWORKS_API_KEY = "hcd5CJN4URxAz0LC.CXXUwj6ljLaUBxrXZC500JG5azgUPdrJmSkljCG2JSE0DoRqK0Sc9nEliTPs5m82" # make sure .env has this
+HOPSWORKS_API_KEY = "hcd5CJN4URxAz0LC.CXXUwj6ljLaUBxrXZC500JG5azgUPdrJmSkljCG2JSE0DoRqK0Sc9nEliTPs5m82"
 HOPSWORKS_PROJECT = "BhumikaTaxiFareMLProject"
 
 project = hopsworks.login(api_key_value=HOPSWORKS_API_KEY, project=HOPSWORKS_PROJECT)
 fs = project.get_feature_store()
-schema = Schema(final_features)
 
 FG_NAME = "citibike_hourly_features"
 FG_VERSION = 1
@@ -112,7 +115,7 @@ except:
     )
     print("🆕 Created new feature group")
 
-# Ensure correct types
+# --- Fix types and upload ---
 int_cols = [col for col in final_features.columns if col.startswith("feature_")] + ["target"]
 final_features[int_cols] = final_features[int_cols].astype(np.int32)
 
