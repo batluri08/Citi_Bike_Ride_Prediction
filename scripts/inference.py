@@ -75,6 +75,9 @@ inference_df["predicted_rides"] = preds.astype(int)
 # --- Output ---
 print("\n📈 Inference Results:")
 print(inference_df[["location_id", "predicted_rides"]])
+print(features_df.sort_values("pickup_hour", ascending=False).head(5))
+print(inference_df[["location_id", "hour_of_day", "day_of_week"] + [f"feature_{i+1}" for i in range(28)]])
+
 
 # --- Step 9: Upload Predictions to Hopsworks Feature Store ---
 from hsml.schema import Schema
