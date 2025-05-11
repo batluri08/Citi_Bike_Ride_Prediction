@@ -100,7 +100,9 @@ for loc in top_locations:
 final_features = pd.concat(latest_rows, ignore_index=True)
 
 # --- Step 8: Add hourly timestamps for Hopsworks ---
-final_features["pickup_hour"] = pd.Timestamp.utcnow().floor("H")
+# ✅ Assign current hour to each prediction row (1 row per location)
+current_hour = pd.Timestamp.utcnow().floor("H")
+final_features["pickup_hour"] = [current_hour] * len(final_features)
 
 # --- Step 9: Upload to Hopsworks Feature Store ---
 HOPSWORKS_API_KEY = "hcd5CJN4URxAz0LC.CXXUwj6ljLaUBxrXZC500JG5azgUPdrJmSkljCG2JSE0DoRqK0Sc9nEliTPs5m82"
