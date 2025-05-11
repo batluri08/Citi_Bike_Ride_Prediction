@@ -9,9 +9,8 @@ import hopsworks
 from hsml.schema import Schema
 import os
 
-
 # --- Step 1: Get previous full month's info ---
-today = datetime.today()
+today = datetime.utcnow()
 year = today.year
 month = today.month - 1 if today.month > 1 else 12
 if today.month == 1:
@@ -20,7 +19,6 @@ if today.month == 1:
 # --- Step 2: Download monthly data ZIP ---
 url = f"https://s3.amazonaws.com/tripdata/{year}{month:02}-citibike-tripdata.zip"
 response = requests.get(url)
-
 if response.status_code != 200:
     raise Exception(f"❌ Failed to download {url}")
 
@@ -29,17 +27,11 @@ with ZipFile(BytesIO(response.content)) as zf:
     with zf.open(csv_filename) as file:
         df = pd.read_csv(file, low_memory=False)
 
-# Filter only last 48 hours
-
-
-# --- Step 3: Clean + Prepare ---
-
 # --- Step 3: Clean + Prepare ---
 df = df[df['started_at'].notnull() & df['ended_at'].notnull()]
 df['started_at'] = pd.to_datetime(df['started_at'], errors='coerce')
 df['ended_at'] = pd.to_datetime(df['ended_at'], errors='coerce')
 df['duration'] = df['ended_at'] - df['started_at']
-
 df = df[(df['duration'] > pd.Timedelta(0)) & (df['duration'] <= pd.Timedelta(hours=5))]
 
 df = df[df['start_station_id'].notnull()]
@@ -48,24 +40,17 @@ df = df[df['pickup_location_id'].notnull()]
 df['pickup_location_id'] = df['pickup_location_id'].round().astype(int)
 df['pickup_hour'] = df['started_at'].dt.floor("H")
 
-
-# --- Step 4: Round to hourly and aggregate ---
-# Build full hourly grid
+# --- Step 4: Aggregate hourly ride counts ---
 hourly_counts = df.groupby(['pickup_hour', 'pickup_location_id']).size().reset_index(name="rides")
-full_hours = pd.date_range(start=hourly_counts['pickup_hour'].min(),
-                           end=hourly_counts['pickup_hour'].max(),
-                           freq='H')
-
-# --- Step 5: Build complete hourly grid for missing hours ---
 full_hours = pd.date_range(hourly_counts['pickup_hour'].min(), hourly_counts['pickup_hour'].max(), freq='H')
 all_locations = hourly_counts['pickup_location_id'].unique()
+
 grid = pd.MultiIndex.from_product([full_hours, all_locations], names=['pickup_hour', 'pickup_location_id'])
 grid_df = pd.DataFrame(index=grid).reset_index()
-
 ts_df = pd.merge(grid_df, hourly_counts, on=["pickup_hour", "pickup_location_id"], how="left")
 ts_df["rides"] = ts_df["rides"].fillna(0).astype(int)
 
-# --- Step 6: Transform into lag features ---
+# --- Step 5: Define lag feature function ---
 def make_lag_features(df, location_id, window_size=28, step_size=1):
     data = df[df["pickup_location_id"] == location_id].sort_values("pickup_hour")
     values = data["rides"].values
@@ -87,29 +72,27 @@ def make_lag_features(df, location_id, window_size=28, step_size=1):
     columns = [f"feature_{i+1}" for i in range(window_size)] + ["hour_of_day", "day_of_week", "target"]
     return pd.DataFrame(rows, columns=columns)
 
-# --- Step 7: Get top 3 locations and prepare features ---
+# --- Step 6: Select top 3 locations & generate lag features ---
 top_locations = ts_df.groupby("pickup_location_id")["rides"].sum().sort_values(ascending=False).head(3).index.tolist()
-combined_features = []
-
 latest_rows = []
+
 for loc in top_locations:
     features_df = make_lag_features(ts_df, loc)
     if not features_df.empty:
         features_df["pickup_location_id"] = loc
-        latest_rows.append(features_df.iloc[-1:])  # <-- get the last row
+        latest_rows.append(features_df.iloc[-1:])  # take the last window
+
 final_features = pd.concat(latest_rows, ignore_index=True)
 
-# --- Step 8: Add hourly timestamps for Hopsworks ---
-# ✅ Assign current hour to each prediction row (1 row per location)
+# --- Step 7: Assign current hour to all rows ---
 current_hour = pd.Timestamp.utcnow().floor("H")
 final_features["pickup_hour"] = [current_hour] * len(final_features)
 
-# --- Step 9: Upload to Hopsworks Feature Store ---
-HOPSWORKS_API_KEY = "hcd5CJN4URxAz0LC.CXXUwj6ljLaUBxrXZC500JG5azgUPdrJmSkljCG2JSE0DoRqK0Sc9nEliTPs5m82"
+# --- Step 8: Upload to Hopsworks Feature Store ---
+HOPSWORKS_API_KEY = os.getenv("HOPSWORKS_API_KEY")  # make sure .env has this
 HOPSWORKS_PROJECT = "BhumikaTaxiFareMLProject"
 
 project = hopsworks.login(api_key_value=HOPSWORKS_API_KEY, project=HOPSWORKS_PROJECT)
-
 fs = project.get_feature_store()
 schema = Schema(final_features)
 
@@ -129,11 +112,9 @@ except:
     )
     print("🆕 Created new feature group")
 
-# Fix types
+# Ensure correct types
 int_cols = [col for col in final_features.columns if col.startswith("feature_")] + ["target"]
 final_features[int_cols] = final_features[int_cols].astype(np.int32)
-
-# Confirm pickup_hour exists
 
 fg.insert(final_features, write_options={"wait_for_job": True})
 print("✅ Features uploaded to Hopsworks successfully.")
